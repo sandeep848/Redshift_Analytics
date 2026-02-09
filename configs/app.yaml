@@ -1,15 +1,16 @@
 app:
   name: redshift-streaming-analytics
-  environment: local
+  environment: "${APP_ENV:local}"
 
 kafka:
-  bootstrap_servers: "localhost:9092"
+  bootstrap_servers: "${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}"
   topics:
     raw_query_metrics: "query_metrics_raw"
     processed_query_metrics: "query_metrics_processed"
   consumer_groups:
     duckdb_writer: "duckdb-writer-group"
     ui_stream: "ui-stream-group"
+    redshift: "redshift-loader-group"
 
 replay:
   time_scale_factor: 50
@@ -53,7 +54,7 @@ processing:
 
 storage:
   duckdb:
-    path: "./data/analytics.duckdb"
+    path: "${DUCKDB_PATH:./data/analytics.duckdb}"
     tables:
       processed: query_metrics_processed
       rollups: query_metrics_rollups
@@ -64,3 +65,22 @@ ui:
     enabled: true
     topic: "query_metrics_processed"
     max_buffer_size: 1000
+
+s3:
+  bucket: "${S3_BUCKET:}"
+  prefix: "${S3_PREFIX:redshift-streaming-analytics}"
+  region: "${AWS_REGION:us-east-1}"
+
+redshift:
+  host: "${REDSHIFT_HOST:}"
+  port: "${REDSHIFT_PORT:5439}"
+  database: "${REDSHIFT_DATABASE:dev}"
+  user: "${REDSHIFT_USER:}"
+  password: "${REDSHIFT_PASSWORD:}"
+  schema_name: "${REDSHIFT_SCHEMA:public}"
+  events_table: "${REDSHIFT_EVENTS_TABLE:query_metrics}"
+  iam_role: "${REDSHIFT_IAM_ROLE:}"
+
+batching:
+  max_rows: 5000
+  max_seconds: 30
