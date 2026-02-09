@@ -1,9 +1,15 @@
 from __future__ import annotations
 
+import sys
 from datetime import date
+from pathlib import Path
 
 import pandas as pd
 import streamlit as st
+
+ROOT = Path(__file__).resolve().parents[3]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 from src.common.settings import Settings
 from src.storage.redshift_client import RedshiftClient

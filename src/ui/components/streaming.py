@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from typing import Deque, Dict, Iterable, List, Optional
 
 from kafka import KafkaConsumer
+from kafka.errors import NoBrokersAvailable
 
 from src.common.schema import QueryMetricsEvent, UiQueryMetricsEvent
 from src.common.settings import Settings
@@ -36,7 +37,7 @@ class StreamBuffer:
         return list(self._buf)
 
 
-def make_ui_stream_consumer(settings: Settings) -> KafkaConsumer:
+def make_ui_stream_consumer(settings: Settings) -> Optional[KafkaConsumer]:
     """
     Creates a Kafka consumer for the UI stream.
 
@@ -47,16 +48,20 @@ def make_ui_stream_consumer(settings: Settings) -> KafkaConsumer:
     topic = settings.ui.stream.topic or settings.kafka.topics.processed_query_metrics
     group_id = settings.kafka.consumer_groups.get("ui_stream") or "ui-stream-group"
 
-    return KafkaConsumer(
-        topic,
-        bootstrap_servers=settings.kafka.bootstrap_servers,
-        group_id=group_id,
-        enable_auto_commit=True,
-        auto_offset_reset="latest",
-        value_deserializer=lambda v: json.loads(v.decode("utf-8")),
-        consumer_timeout_ms=250,
-        max_poll_records=500,
-    )
+    try:
+        return KafkaConsumer(
+            topic,
+            bootstrap_servers=settings.kafka.bootstrap_servers,
+            group_id=group_id,
+            enable_auto_commit=True,
+            auto_offset_reset="latest",
+            value_deserializer=lambda v: json.loads(v.decode("utf-8")),
+            consumer_timeout_ms=250,
+            max_poll_records=500,
+        )
+    except NoBrokersAvailable:
+        logger.warning("Kafka brokers unavailable for UI stream.")
+        return None
 
 
 def poll_stream_into_buffer(

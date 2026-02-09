@@ -21,6 +21,25 @@ from src.storage.redshift_client import RedshiftClient
 logger = logging.getLogger(__name__)
 
 
+def _validate_redshift_settings(settings: Settings) -> None:
+    missing = []
+    if not settings.s3.bucket:
+        missing.append("s3.bucket")
+    if not settings.redshift.host:
+        missing.append("redshift.host")
+    if not settings.redshift.user:
+        missing.append("redshift.user")
+    if not settings.redshift.password:
+        missing.append("redshift.password")
+
+    if missing:
+        raise ValueError(
+            "Missing required Redshift/S3 configuration values: "
+            + ", ".join(missing)
+            + ". Update configs/app.yaml or .env."
+        )
+
+
 def _parse_event(raw: bytes) -> QueryMetricsEvent:
     payload = json.loads(raw.decode("utf-8"))
     return QueryMetricsEvent.model_validate(payload)
@@ -58,10 +77,12 @@ def run_redshift_consumer(settings: Settings) -> None:
     """
     logger.info("Starting Redshift loader")
 
+    _validate_redshift_settings(settings)
+
     consumer = KafkaConsumer(
-        settings.kafka.topic_query_metrics,
+        settings.kafka.topics.processed_query_metrics,
         bootstrap_servers=settings.kafka.bootstrap_servers,
-        group_id=settings.kafka.consumer_groups["redshift"],
+        group_id=settings.kafka.consumer_groups.get("redshift"),
         auto_offset_reset="earliest",
         enable_auto_commit=True,
         value_deserializer=lambda v: v,
@@ -125,7 +146,7 @@ def _flush_batch(
             schema=settings.redshift.schema_name,
             table=settings.redshift.events_table,
             region=settings.s3.region,
-            iam_role=settings.app.get("redshift_iam_role"),
+            iam_role=settings.redshift.iam_role or None,
         )
 
     logger.info("Batch loaded successfully")

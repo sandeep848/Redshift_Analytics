@@ -1,9 +1,15 @@
 from __future__ import annotations
 
+import sys
 import time
+from pathlib import Path
 
 import pandas as pd
 import streamlit as st
+
+ROOT = Path(__file__).resolve().parents[3]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 from src.common.settings import Settings
 from src.storage.duckdb_client import DuckDBClient
@@ -72,7 +78,9 @@ def _render_stream_panel(settings: Settings) -> None:
     buffer = st.session_state.get("stream_buffer")
 
     if consumer is None or buffer is None:
-        st.warning("Streaming is not available (consumer/buffer not initialized).")
+        st.warning(
+            "Streaming is not available. Ensure Kafka is running and the UI can reach the broker."
+        )
         return
 
     appended = poll_stream_into_buffer(consumer, buffer, max_poll_seconds=0.5)

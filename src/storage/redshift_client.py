@@ -30,11 +30,11 @@ class RedshiftClient:
     @classmethod
     def from_settings(cls, settings: Settings) -> "RedshiftClient":
         return cls(
-            host=settings.app["redshift_host"],
-            port=int(settings.app.get("redshift_port", 5439)),
-            database=settings.app.get("redshift_database", "dev"),
-            user=settings.app["redshift_user"],
-            password=settings.app["redshift_password"],
+            host=settings.redshift.host,
+            port=int(settings.redshift.port),
+            database=settings.redshift.database,
+            user=settings.redshift.user,
+            password=settings.redshift.password,
         )
 
     def _connect(self) -> PGConnection:
