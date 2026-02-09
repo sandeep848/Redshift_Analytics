@@ -52,6 +52,9 @@ dev = [
 [project.scripts]
 redshift-streaming = "src.main:cli"
 
+[tool.poetry]
+package-mode = false
+
 [tool.setuptools]
 package-dir = {"" = "src"}
 
