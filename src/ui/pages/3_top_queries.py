@@ -1,7 +1,14 @@
 from __future__ import annotations
 
-import streamlit as st
+import sys
 from datetime import timedelta
+from pathlib import Path
+
+import streamlit as st
+
+ROOT = Path(__file__).resolve().parents[3]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 from src.common.settings import Settings
 from src.storage.duckdb_client import DuckDBClient
