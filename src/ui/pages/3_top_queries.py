@@ -44,13 +44,11 @@ def main() -> None:
 
     # If your SQL_TOP_QUERIES references query_metrics_raw, update it to use processed_table,
     # or inject the table name here if SQL_TOP_QUERIES is a template.
-    sql = SQL_TOP_QUERIES
-    if "{table}" in sql:
-        sql = sql.format(table=processed_table)
+    sql = SQL_TOP_QUERIES.format(table=processed_table, metric=metric)
 
     df = db.fetchdf(
         sql,
-        params=[start_ts, latest, deployment, metric, limit],
+        params=[start_ts, latest, deployment, deployment, limit],
     )
 
     if df.empty:
@@ -62,8 +60,10 @@ def main() -> None:
 
     c1, c2, c3 = st.columns(3)
     c1.metric("Count", f"{len(df):,}")
-    c2.metric("Total scanned (MB)", f"{df['scanned_mb'].sum():,.1f}")
-    c3.metric("Total spilled (MB)", f"{df['spilled_mb'].sum():,.1f}")
+    if "scanned_mb" in df:
+        c2.metric("Total scanned (MB)", f"{df['scanned_mb'].sum():,.1f}")
+    if "spilled_mb" in df:
+        c3.metric("Total spilled (MB)", f"{df['spilled_mb'].sum():,.1f}")
 
 
 if __name__ == "__main__":

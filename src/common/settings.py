@@ -118,6 +118,28 @@ class StorageConfig(BaseModel):
     duckdb: DuckDBStorageConfig = Field(default_factory=DuckDBStorageConfig)
 
 
+class S3Config(BaseModel):
+    bucket: str = ""
+    prefix: str = "redshift-streaming-analytics"
+    region: str = "us-east-1"
+
+
+class RedshiftConfig(BaseModel):
+    host: str = ""
+    port: int = 5439
+    database: str = "dev"
+    user: str = ""
+    password: str = ""
+    schema_name: str = "public"
+    events_table: str = "query_metrics"
+    iam_role: Optional[str] = None
+
+
+class BatchingConfig(BaseModel):
+    max_rows: int = Field(default=5000, gt=0)
+    max_seconds: int = Field(default=30, gt=0)
+
+
 class UiStreamConfig(BaseModel):
     enabled: bool = True
     topic: str = "query_metrics_processed"
@@ -137,6 +159,9 @@ class Settings(BaseModel):
     processing: ProcessingConfig = Field(default_factory=ProcessingConfig)
     storage: StorageConfig = Field(default_factory=StorageConfig)
     ui: UiConfig = Field(default_factory=UiConfig)
+    s3: S3Config = Field(default_factory=S3Config)
+    redshift: RedshiftConfig = Field(default_factory=RedshiftConfig)
+    batching: BatchingConfig = Field(default_factory=BatchingConfig)
     logging: Dict[str, Any]
 
     # -----------------------------------------------------

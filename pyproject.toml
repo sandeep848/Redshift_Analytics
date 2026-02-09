@@ -23,9 +23,11 @@ dependencies = [
   "pandas>=2.1",
   "pyarrow>=14.0",
   "duckdb>=0.9",
+  "python-dateutil>=2.9",
 
   # kafka
   "confluent-kafka>=2.3",
+  "kafka-python>=2.0",
 
   # aws / redshift
   "boto3>=1.34",
@@ -49,6 +51,9 @@ dev = [
 
 [project.scripts]
 redshift-streaming = "src.main:cli"
+
+[tool.poetry]
+package-mode = false
 
 [tool.setuptools]
 package-dir = {"" = "src"}

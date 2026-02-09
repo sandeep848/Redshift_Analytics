@@ -146,8 +146,12 @@ SELECT
   COUNT(*) AS occurrences,
   AVG(duration_seconds) AS avg_duration_seconds,
   AVG(spill_pressure) AS avg_spill_pressure,
+  MAX({metric}) AS metric_value,
   MAX(arrival_timestamp) AS last_seen
-FROM query_metrics_processed
+FROM {table}
+WHERE arrival_timestamp BETWEEN ? AND ?
+  AND (? = 'all' OR deployment_type = ?)
 GROUP BY 1, 2
-ORDER BY occurrences DESC, last_seen DESC
-LIMIT 50;"""
+ORDER BY metric_value DESC, last_seen DESC
+LIMIT ?;
+"""
