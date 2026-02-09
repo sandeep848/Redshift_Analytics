@@ -72,7 +72,9 @@ def _render_stream_panel(settings: Settings) -> None:
     buffer = st.session_state.get("stream_buffer")
 
     if consumer is None or buffer is None:
-        st.warning("Streaming is not available (consumer/buffer not initialized).")
+        st.warning(
+            "Streaming is not available. Ensure Kafka is running and the UI can reach the broker."
+        )
         return
 
     appended = poll_stream_into_buffer(consumer, buffer, max_poll_seconds=0.5)
