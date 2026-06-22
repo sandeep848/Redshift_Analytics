@@ -16,7 +16,8 @@ CREATE TABLE IF NOT EXISTS query_metrics_processed (
 
     duration_seconds DOUBLE NOT NULL,
     spill_pressure DOUBLE NOT NULL,
-    queued BOOLEAN NOT NULL
+    queued BOOLEAN NOT NULL,
+    anomaly_tags TEXT
 );
 
 -- Helpful index for time-based queries
