@@ -1,0 +1,300 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Redshift Streaming Analytics</title>
+  <meta name="description" content="Real-time Redshift query telemetry dashboard with SSE streaming, anomaly detection and DuckDB analytics." />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      --bg:#F5F7FA; --surface:#FFFFFF; --border:#E2E8F0; --border-soft:#EDF2F7;
+      --sky:#7EC8E3; --sky-light:#D6F0FA; --sky-dark:#4FA8C7;
+      --pink:#F5B8C8; --pink-light:#FDE8EE; --pink-dark:#D97098;
+      --sage:#A8D5B5; --sage-light:#DFF2E6; --sage-dark:#5A9E72;
+      --peach:#F9D4A7; --peach-light:#FEF3E2; --peach-dark:#C98B3A;
+      --text-primary:#1A202C; --text-secondary:#4A5568; --text-muted:#718096;
+      --radius:10px; --radius-lg:16px;
+      --shadow:0 1px 4px rgba(0,0,0,0.06),0 4px 16px rgba(0,0,0,0.04);
+    }
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text-primary);min-height:100vh;display:flex}
+    .sidebar{width:240px;background:var(--surface);border-right:1px solid var(--border);padding:24px 18px;display:flex;flex-direction:column;gap:28px;height:100vh;position:fixed;top:0;left:0;overflow-y:auto}
+    .logo-title{font-size:1rem;font-weight:700;letter-spacing:-0.3px}
+    .logo-sub{font-size:0.72rem;color:var(--text-muted);margin-top:3px}
+    .sidebar-section{display:flex;flex-direction:column;gap:10px}
+    .sidebar-label{font-size:0.68rem;font-weight:600;text-transform:uppercase;letter-spacing:0.8px;color:var(--text-muted)}
+    .status-row{display:flex;justify-content:space-between;align-items:center}
+    .status-name{font-size:0.8rem;color:var(--text-secondary)}
+    .status-dot{width:7px;height:7px;border-radius:50%;background:var(--border);display:inline-block;margin-right:5px;transition:background .4s}
+    .status-dot.online{background:var(--sage-dark)}
+    .status-dot.offline{background:var(--pink-dark)}
+    .status-dot.pulse{animation:pdot 2s infinite}
+    @keyframes pdot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.7)}}
+    .status-text{font-size:0.72rem;font-weight:500;color:var(--text-muted)}
+    .ctrl-select{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);color:var(--text-primary);padding:8px 10px;font-family:inherit;font-size:0.8rem;cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23718096' d='M6 8L1 3h10z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;transition:border-color .2s}
+    .ctrl-select:focus{outline:none;border-color:var(--sky)}
+    .sidebar-footer{margin-top:auto;font-size:0.68rem;color:var(--text-muted);line-height:1.6}
+    .main{margin-left:240px;flex:1;padding:28px 32px;display:flex;flex-direction:column;gap:20px;overflow-y:auto;min-height:100vh}
+    .page-header{display:flex;justify-content:space-between;align-items:flex-end}
+    .page-title{font-size:1.4rem;font-weight:700;letter-spacing:-0.4px}
+    .page-subtitle{font-size:0.78rem;color:var(--text-muted);margin-top:3px}
+    .mode-chip{display:inline-flex;align-items:center;gap:5px;padding:4px 12px;border-radius:999px;font-size:0.72rem;font-weight:500;background:var(--sky-light);color:var(--sky-dark);border:1px solid var(--sky)}
+    .kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+    @media(max-width:1100px){.kpi-grid{grid-template-columns:repeat(2,1fr)}}
+    .kpi-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:18px 20px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:8px;transition:box-shadow .2s,transform .2s}
+    .kpi-card:hover{box-shadow:0 4px 20px rgba(0,0,0,.08);transform:translateY(-2px)}
+    .kpi-top{display:flex;justify-content:space-between;align-items:center}
+    .kpi-label{font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.6px;color:var(--text-muted)}
+    .kpi-icon{width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:.85rem}
+    .kpi-icon.sky{background:var(--sky-light)}.kpi-icon.pink{background:var(--pink-light)}.kpi-icon.sage{background:var(--sage-light)}.kpi-icon.peach{background:var(--peach-light)}
+    .kpi-value{font-size:1.7rem;font-weight:700;letter-spacing:-0.5px;line-height:1;transition:color .3s}
+    .kpi-value.alert{color:var(--pink-dark)}.kpi-value.good{color:var(--sage-dark)}
+    .kpi-foot{font-size:0.7rem;color:var(--text-muted)}
+    .tabs-bar{display:flex;gap:2px;border-bottom:1px solid var(--border)}
+    .tab-btn{background:none;border:none;border-bottom:2px solid transparent;padding:10px 18px;margin-bottom:-1px;font-family:inherit;font-size:0.82rem;font-weight:500;color:var(--text-muted);cursor:pointer;transition:color .2s,border-color .2s}
+    .tab-btn:hover{color:var(--text-primary)}
+    .tab-btn.active{color:var(--sky-dark);border-bottom-color:var(--sky-dark);font-weight:600}
+    .tab-content{display:none}
+    .tab-content.active{display:flex;flex-direction:column;gap:16px;animation:fadein .25s ease}
+    @keyframes fadein{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+    .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:20px;box-shadow:var(--shadow)}
+    .card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+    .card-title{font-size:0.88rem;font-weight:600;color:var(--text-primary)}
+    .charts-row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+    @media(max-width:900px){.charts-row{grid-template-columns:1fr}}
+    .chart-box{position:relative;height:200px}
+    .table-wrap{overflow-x:auto;max-height:380px;border-radius:var(--radius);border:1px solid var(--border-soft)}
+    table{width:100%;border-collapse:collapse;font-size:.78rem}
+    thead th{background:var(--bg);color:var(--text-muted);font-weight:600;padding:9px 12px;text-align:left;border-bottom:1px solid var(--border);position:sticky;top:0;white-space:nowrap}
+    tbody td{padding:8px 12px;border-bottom:1px solid var(--border-soft);color:var(--text-secondary)}
+    tbody tr:last-child td{border-bottom:none}
+    tbody tr{transition:background .15s}
+    tbody tr:hover{background:var(--bg)}
+    .badge{display:inline-block;padding:2px 7px;border-radius:999px;font-size:.67rem;font-weight:600;white-space:nowrap}
+    .badge-spill{background:var(--pink-light);color:var(--pink-dark)}
+    .badge-queued{background:var(--sky-light);color:var(--sky-dark)}
+    .badge-spike{background:var(--peach-light);color:var(--peach-dark)}
+    .badge-ok{background:var(--sage-light);color:var(--sage-dark)}
+    .badge-prov{background:var(--sky-light);color:var(--sky-dark)}
+    .badge-server{background:var(--peach-light);color:var(--peach-dark)}
+    .btn{display:inline-flex;align-items:center;gap:5px;padding:6px 14px;border-radius:var(--radius);border:1px solid var(--border);background:var(--surface);font-family:inherit;font-size:.78rem;font-weight:500;color:var(--text-secondary);cursor:pointer;transition:background .15s,border-color .15s}
+    .btn:hover{background:var(--bg);border-color:var(--sky);color:var(--sky-dark)}
+    .tooltip-wrap{position:relative;display:inline-flex}
+    .tooltip-icon{width:18px;height:18px;border-radius:50%;background:var(--bg);border:1px solid var(--border);color:var(--text-muted);font-size:.65rem;font-weight:700;cursor:default;display:flex;align-items:center;justify-content:center}
+    .tooltip-box{display:none;position:absolute;right:0;top:24px;width:240px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;font-size:.75rem;color:var(--text-secondary);line-height:1.5;box-shadow:var(--shadow);z-index:100}
+    .tooltip-wrap:hover .tooltip-box{display:block}
+    .diag-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+    @media(max-width:800px){.diag-grid{grid-template-columns:1fr}}
+    .cli-group{display:flex;flex-direction:column;gap:10px}
+    .cli-desc{font-size:.75rem;color:var(--text-muted);margin-bottom:4px}
+    .cli-code{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:9px 12px;font-family:'Courier New',monospace;font-size:.78rem;color:var(--sky-dark);overflow-x:auto;cursor:pointer;transition:border-color .2s}
+    .cli-code:hover{border-color:var(--sky)}
+    .arch-list{display:flex;flex-direction:column;gap:10px}
+    .arch-item{display:flex;align-items:flex-start;gap:10px;padding:10px 12px;background:var(--bg);border-radius:var(--radius);border:1px solid var(--border-soft)}
+    .arch-dot{width:7px;height:7px;border-radius:50%;margin-top:5px;flex-shrink:0}
+    .arch-dot.sky{background:var(--sky-dark)}.arch-dot.pink{background:var(--pink-dark)}.arch-dot.sage{background:var(--sage-dark)}.arch-dot.peach{background:var(--peach-dark)}
+    .arch-text{font-size:.78rem;color:var(--text-secondary);line-height:1.5}
+    .arch-text strong{color:var(--text-primary);font-weight:600}
+    .empty-state{text-align:center;padding:40px 20px;color:var(--text-muted);font-size:.82rem}
+    .empty-state .big{font-size:1.8rem;margin-bottom:8px}
+    ::-webkit-scrollbar{width:5px;height:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--border);border-radius:99px}
+  </style>
+</head>
+<body>
+<aside class="sidebar">
+  <div>
+    <div class="logo-title">Analytics Deck</div>
+    <div class="logo-sub">Redshift Streaming Console</div>
+  </div>
+  <div class="sidebar-section">
+    <div class="sidebar-label">System State</div>
+    <div class="status-row">
+      <span class="status-name">Kafka</span>
+      <span><span class="status-dot" id="kafka-dot"></span><span class="status-text" id="kafka-text">-</span></span>
+    </div>
+    <div class="status-row">
+      <span class="status-name">DuckDB</span>
+      <span><span class="status-dot" id="db-dot"></span><span class="status-text" id="db-text">-</span></span>
+    </div>
+  </div>
+  <div class="sidebar-section">
+    <div class="sidebar-label">Execution Mode</div>
+    <select id="mode-selector" class="ctrl-select">
+      <option value="simulated">Simulated Feed</option>
+      <option value="live">Live Stream</option>
+    </select>
+  </div>
+  <div class="sidebar-section">
+    <div class="sidebar-label">Deployment Filter</div>
+    <select id="deploy-filter" class="ctrl-select">
+      <option value="all">All Types</option>
+      <option value="provisioned">Provisioned</option>
+      <option value="serverless">Serverless</option>
+    </select>
+  </div>
+  <div class="sidebar-footer">Timestamps in UTC.<br>Auto-recovery active.</div>
+</aside>
+<main class="main">
+  <div class="page-header">
+    <div>
+      <div class="page-title">Redshift Streaming Analytics</div>
+      <div class="page-subtitle">Real-time SSE telemetry &middot; anomaly classification &middot; DuckDB rollups</div>
+    </div>
+    <div class="mode-chip" id="mode-chip">Simulated Feed</div>
+  </div>
+  <div class="kpi-grid">
+    <div class="kpi-card">
+      <div class="kpi-top"><span class="kpi-label">Events Received</span><span class="kpi-icon sky">📥</span></div>
+      <div class="kpi-value" id="kpi-volume">0</div>
+      <div class="kpi-foot" id="kpi-volume-foot">Queue wait rate: 0.0%</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-top"><span class="kpi-label">Avg Latency</span><span class="kpi-icon pink">⚡</span></div>
+      <div class="kpi-value" id="kpi-latency">0.00s</div>
+      <div class="kpi-foot">Compile + execution time</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-top"><span class="kpi-label">Data Scanned</span><span class="kpi-icon peach">💽</span></div>
+      <div class="kpi-value" id="kpi-throughput">0.0 MB</div>
+      <div class="kpi-foot" id="kpi-throughput-foot">Spilled: 0.0 MB</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-top"><span class="kpi-label">Spill Health</span><span class="kpi-icon sage">🛡</span></div>
+      <div class="kpi-value good" id="kpi-spill">Healthy</div>
+      <div class="kpi-foot" id="kpi-spill-foot">Spilling queries: 0.0%</div>
+    </div>
+  </div>
+  <div class="tabs-bar">
+    <button class="tab-btn active" onclick="switchTab('live',this)">Live Feed</button>
+    <button class="tab-btn" onclick="switchTab('analytics',this)">Warehouse Trends</button>
+    <button class="tab-btn" onclick="switchTab('heavy',this)">Top Heavy Queries</button>
+    <button class="tab-btn" onclick="switchTab('diagnose',this)">Setup &amp; CLI</button>
+  </div>
+  <!-- Live Feed -->
+  <div id="tab-live" class="tab-content active">
+    <div class="charts-row">
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Query Duration (seconds)</span>
+          <div class="tooltip-wrap"><span class="tooltip-icon">i</span><div class="tooltip-box">Compilation + execution seconds per event. Spikes indicate resource limits or heavy scans.</div></div>
+        </div>
+        <div class="chart-box"><canvas id="durationChart"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Queue Delay (ms)</span>
+          <div class="tooltip-wrap"><span class="tooltip-icon">i</span><div class="tooltip-box">Wait time before threads execute. Near-zero values indicate optimal resource scaling.</div></div>
+        </div>
+        <div class="chart-box"><canvas id="queueChart"></canvas></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Event Stream</span>
+        <button class="btn" onclick="clearLiveFeed()">Clear</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Query ID</th><th>Deployment</th><th>Duration</th><th>Queue Wait</th><th>Scanned MB</th><th>Spilled MB</th><th>Spill Ratio</th><th>Anomalies</th><th>Timestamp</th></tr></thead>
+          <tbody id="live-table-body"><tr><td colspan="9" class="empty-state"><div class="big">📡</div>Waiting for events…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <!-- Warehouse Trends -->
+  <div id="tab-analytics" class="tab-content">
+    <div class="charts-row">
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Avg Execution Duration Trend</span>
+          <div class="tooltip-wrap"><span class="tooltip-icon">i</span><div class="tooltip-box">Minute-level aggregated query execution duration from DuckDB rollups.</div></div>
+        </div>
+        <div class="chart-box"><canvas id="aggDurChart"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Queue Ratio by Deployment</span>
+          <div class="tooltip-wrap"><span class="tooltip-icon">i</span><div class="tooltip-box">Ratio of queued queries per window, split by provisioned vs serverless.</div></div>
+        </div>
+        <div class="chart-box"><canvas id="aggQueueChart"></canvas></div>
+      </div>
+    </div>
+  </div>
+  <!-- Heavy Queries -->
+  <div id="tab-heavy" class="tab-content">
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Top Heavy Workloads</span>
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="font-size:.75rem;color:var(--text-muted)">Rank by</span>
+          <select id="heavy-metric" class="ctrl-select" style="width:160px" onchange="loadHeavyQueries()">
+            <option value="scanned_mb">Scanned MB</option>
+            <option value="spilled_mb">Spilled MB</option>
+            <option value="queue_duration_ms">Queue Delay</option>
+            <option value="execution_duration_ms">Execution Time</option>
+            <option value="compile_duration_ms">Compile Time</option>
+          </select>
+          <div class="tooltip-wrap"><span class="tooltip-icon">i</span><div class="tooltip-box">Identifies queries with extreme resource usage or scheduling constraints.</div></div>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Query ID</th><th>Deployment</th><th>Metric Value</th><th>Spill Ratio</th><th>Duration</th><th>Anomalies</th><th>Last Seen</th></tr></thead>
+          <tbody id="heavy-table-body"><tr><td colspan="7" class="empty-state"><div class="big">🔍</div>Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <!-- Setup & CLI -->
+  <div id="tab-diagnose" class="tab-content">
+    <div class="diag-grid">
+      <div class="card">
+        <div class="card-header"><span class="card-title">CLI Reference</span></div>
+        <div class="cli-group">
+          <div><div class="cli-desc">Bootstrap DuckDB schema</div><div class="cli-code" title="Click to copy" onclick="copyCode(this)">python -m src.main bootstrap-duckdb</div></div>
+          <div><div class="cli-desc">Start local DuckDB consumer</div><div class="cli-code" title="Click to copy" onclick="copyCode(this)">python -m src.main consumer-duckdb</div></div>
+          <div><div class="cli-desc">Run Kafka replay producer</div><div class="cli-code" title="Click to copy" onclick="copyCode(this)">python -m src.main producer</div></div>
+          <div><div class="cli-desc">Start dashboard server</div><div class="cli-code" title="Click to copy" onclick="copyCode(this)">python -m src.main ui --port 8501</div></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">Architecture</span></div>
+        <div class="arch-list">
+          <div class="arch-item"><span class="arch-dot sky"></span><div class="arch-text"><strong>SSE Stream</strong> — Direct HTTP streaming pushes query metrics via <code>/api/stream</code>.</div></div>
+          <div class="arch-item"><span class="arch-dot pink"></span><div class="arch-text"><strong>Dead Letter Queue</strong> — Corrupt events route to Kafka DLQ topic automatically.</div></div>
+          <div class="arch-item"><span class="arch-dot peach"></span><div class="arch-text"><strong>Prometheus Exporter</strong> — Pipeline metrics served at <code>/metrics</code> endpoint.</div></div>
+          <div class="arch-item"><span class="arch-dot sage"></span><div class="arch-text"><strong>Anomaly Tagging</strong> — Flags spill, queue bound, compile bound, and execution spikes in real-time.</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+<script>
+var eventSource=null,durationChart=null,queueChart=null,aggDurChart=null,aggQueueChart=null;
+var MAX_BUFFER=30,MAX_TABLE_ROWS=60;
+var evtCount=0,totalDur=0,totalScanned=0,totalSpilled=0,queuedCount=0,spilledQCount=0,liveStarted=false;
+function fmtNum(n,dec){dec=dec===undefined?2:dec;return(n!==null&&n!==undefined)?Number(n).toFixed(dec):'--';}
+function fmtTime(iso){if(!iso)return'--';return iso.replace('T',' ').split('.')[0].slice(11)+' UTC';}
+function depBadge(dep){if(dep==='provisioned')return'<span class="badge badge-prov">Provisioned</span>';if(dep==='serverless')return'<span class="badge badge-server">Serverless</span>';return'<span class="badge">'+dep+'</span>';}
+function anomalyBadges(evt){var p=[];if(evt.spilled_mb>0)p.push('<span class="badge badge-spill">Spill</span>');if(evt.queued)p.push('<span class="badge badge-queued">Queued</span>');if(evt.duration_seconds>7)p.push('<span class="badge badge-spike">Spike</span>');if(evt.anomaly_tags)p.push('<span class="badge badge-spike">'+evt.anomaly_tags+'</span>');return p.length?p.join(' '):'<span class="badge badge-ok">Optimal</span>';}
+function copyCode(el){navigator.clipboard.writeText(el.textContent.trim()).catch(function(){});var o=el.style.borderColor;el.style.borderColor='var(--sage-dark)';setTimeout(function(){el.style.borderColor=o;},900);}
+function fetchStatus(){fetch('/api/status').then(function(r){return r.json();}).then(function(d){var kd=document.getElementById('kafka-dot'),kt=document.getElementById('kafka-text'),dd=document.getElementById('db-dot'),dt=document.getElementById('db-text');var ko=d.kafka==='online';kd.className='status-dot '+(ko?'online pulse':'offline');kt.textContent=ko?'Online':'Offline';var dr=d.duckdb==='ready';dd.className='status-dot '+(dr?'online':'offline');dt.textContent=d.duckdb==='ready'?'Connected':d.duckdb==='locked'?'Locked':d.duckdb==='empty'?'Empty':'Offline';}).catch(function(){});}
+function switchTab(id,btn){document.querySelectorAll('.tab-btn').forEach(function(b){b.classList.remove('active');});document.querySelectorAll('.tab-content').forEach(function(c){c.classList.remove('active');});btn.classList.add('active');document.getElementById('tab-'+id).classList.add('active');if(id==='analytics')loadAnalyticsCharts();if(id==='heavy')loadHeavyQueries();}
+var CGD={responsive:true,maintainAspectRatio:false,animation:{duration:300},plugins:{legend:{display:false},tooltip:{backgroundColor:'#FFF',borderColor:'#E2E8F0',borderWidth:1,titleColor:'#1A202C',bodyColor:'#4A5568',padding:8}},scales:{x:{display:false},y:{grid:{color:'#EDF2F7'},ticks:{color:'#718096',font:{size:10}}}}};
+function initLiveCharts(){durationChart=new Chart(document.getElementById('durationChart'),{type:'line',data:{labels:[],datasets:[{label:'Duration (s)',data:[],borderColor:'#4FA8C7',backgroundColor:'rgba(126,200,227,0.12)',borderWidth:2,fill:true,tension:0.35,pointRadius:0,pointHoverRadius:4}]},options:JSON.parse(JSON.stringify(CGD))});queueChart=new Chart(document.getElementById('queueChart'),{type:'bar',data:{labels:[],datasets:[{label:'Queue (ms)',data:[],backgroundColor:'rgba(245,184,200,0.7)',borderColor:'#D97098',borderWidth:1,borderRadius:3}]},options:JSON.parse(JSON.stringify(CGD))});}
+function connectSSE(){if(eventSource){eventSource.close();eventSource=null;}var mode=document.getElementById('mode-selector').value;document.getElementById('mode-chip').textContent=mode==='simulated'?'Simulated Feed':'Live Stream';eventSource=new EventSource('/api/stream?mode='+mode);eventSource.onmessage=function(e){var evt;try{evt=JSON.parse(e.data);}catch(ex){return;}var f=document.getElementById('deploy-filter').value;if(f!=='all'&&evt.deployment_type!==f)return;if(!liveStarted){document.getElementById('live-table-body').innerHTML='';liveStarted=true;}evtCount++;totalDur+=Number(evt.duration_seconds)||0;totalScanned+=Number(evt.scanned_mb)||0;totalSpilled+=Number(evt.spilled_mb)||0;if(evt.queued)queuedCount++;if(evt.spilled_mb>0)spilledQCount++;updateKPIs();addLiveRow(evt);pushLiveCharts(evt);};eventSource.onerror=function(){};}
+function updateKPIs(){document.getElementById('kpi-volume').textContent=evtCount.toLocaleString();var qp=evtCount>0?(queuedCount/evtCount*100):0;document.getElementById('kpi-volume-foot').textContent='Queue wait rate: '+qp.toFixed(1)+'%';var ad=evtCount>0?(totalDur/evtCount):0;document.getElementById('kpi-latency').textContent=ad.toFixed(2)+'s';document.getElementById('kpi-throughput').textContent=totalScanned.toFixed(1)+' MB';document.getElementById('kpi-throughput-foot').textContent='Spilled: '+totalSpilled.toFixed(1)+' MB';var se=document.getElementById('kpi-spill'),sp=evtCount>0?(spilledQCount/evtCount*100):0;if(totalSpilled===0){se.textContent='Healthy';se.className='kpi-value good';}else{se.textContent='Overflow';se.className='kpi-value alert';}document.getElementById('kpi-spill-foot').textContent='Spilling queries: '+sp.toFixed(1)+'%';}
+function addLiveRow(evt){var tbody=document.getElementById('live-table-body');var tr=document.createElement('tr');tr.innerHTML='<td><strong>'+evt.query_id+'</strong></td><td>'+depBadge(evt.deployment_type)+'</td><td>'+fmtNum(evt.duration_seconds)+'s</td><td>'+evt.queue_duration_ms+'ms</td><td>'+fmtNum(evt.scanned_mb,1)+'</td><td>'+fmtNum(evt.spilled_mb,1)+'</td><td>'+fmtNum(evt.spill_pressure,4)+'</td><td>'+anomalyBadges(evt)+'</td><td style="white-space:nowrap">'+fmtTime(evt.arrival_timestamp)+'</td>';tbody.insertBefore(tr,tbody.firstChild);while(tbody.children.length>MAX_TABLE_ROWS)tbody.removeChild(tbody.lastChild);}
+function pushLiveCharts(evt){var lbl=fmtTime(evt.arrival_timestamp).slice(0,8);durationChart.data.labels.push(lbl);if(durationChart.data.labels.length>MAX_BUFFER)durationChart.data.labels.shift();durationChart.data.datasets[0].data.push(evt.duration_seconds);if(durationChart.data.datasets[0].data.length>MAX_BUFFER)durationChart.data.datasets[0].data.shift();queueChart.data.labels.push(lbl);if(queueChart.data.labels.length>MAX_BUFFER)queueChart.data.labels.shift();queueChart.data.datasets[0].data.push(evt.queue_duration_ms);if(queueChart.data.datasets[0].data.length>MAX_BUFFER)queueChart.data.datasets[0].data.shift();durationChart.update('none');queueChart.update('none');}
+function clearLiveFeed(){document.getElementById('live-table-body').innerHTML='<tr><td colspan="9" class="empty-state"><div class="big">📡</div>Waiting for events…</td></tr>';liveStarted=false;evtCount=totalDur=totalScanned=totalSpilled=queuedCount=spilledQCount=0;updateKPIs();durationChart.data.labels=[];durationChart.data.datasets[0].data=[];queueChart.data.labels=[];queueChart.data.datasets[0].data=[];durationChart.update();queueChart.update();}
+function buildAOpts(){var o=JSON.parse(JSON.stringify(CGD));o.scales.x={display:true,ticks:{color:'#718096',font:{size:10},maxTicksLimit:10},grid:{color:'#EDF2F7'}};o.plugins.legend={display:true,labels:{color:'#4A5568',font:{size:11},boxWidth:10}};return o;}
+function loadAnalyticsCharts(){var mode=document.getElementById('mode-selector').value;fetch('/api/analytics?mode='+mode).then(function(r){return r.json();}).then(function(data){var prov=data.filter(function(d){return d.deployment_type==='provisioned';});var serv=data.filter(function(d){return d.deployment_type==='serverless';});var labels=prov.map(function(d){var t=d.window_start||'';return t.includes('T')?t.split('T')[1].slice(0,5):t.slice(0,5);});if(aggDurChart){aggDurChart.destroy();aggDurChart=null;}if(aggQueueChart){aggQueueChart.destroy();aggQueueChart=null;}aggDurChart=new Chart(document.getElementById('aggDurChart'),{type:'line',data:{labels:labels,datasets:[{label:'Provisioned',data:prov.map(function(d){return d.avg_duration_seconds;}),borderColor:'#4FA8C7',backgroundColor:'rgba(126,200,227,0.08)',fill:true,tension:0.3,borderWidth:2,pointRadius:0},{label:'Serverless',data:serv.map(function(d){return d.avg_duration_seconds;}),borderColor:'#D97098',backgroundColor:'rgba(245,184,200,0.08)',fill:true,tension:0.3,borderWidth:2,pointRadius:0}]},options:buildAOpts()});aggQueueChart=new Chart(document.getElementById('aggQueueChart'),{type:'bar',data:{labels:labels,datasets:[{label:'Provisioned',data:prov.map(function(d){return d.queued_ratio;}),backgroundColor:'rgba(126,200,227,0.6)',borderRadius:3},{label:'Serverless',data:serv.map(function(d){return d.queued_ratio;}),backgroundColor:'rgba(249,212,167,0.7)',borderRadius:3}]},options:buildAOpts()});}).catch(function(){});}
+function loadHeavyQueries(){var metric=document.getElementById('heavy-metric').value,mode=document.getElementById('mode-selector').value,tbody=document.getElementById('heavy-table-body');tbody.innerHTML='<tr><td colspan="7" class="empty-state"><div class="big">&#x23F3;</div>Loading...</td></tr>';fetch('/api/top-queries?metric='+metric+'&limit=20&mode='+mode).then(function(r){return r.json();}).then(function(data){if(!data.length){tbody.innerHTML='<tr><td colspan="7" class="empty-state"><div class="big">🔍</div>No data.</td></tr>';return;}tbody.innerHTML='';data.forEach(function(q){var mv=(q.metric_value!=null)?fmtNum(q.metric_value):fmtNum(q[metric]);var ts=q.arrival_timestamp?q.arrival_timestamp.replace('T',' ').split('.')[0]:'--';var tr=document.createElement('tr');tr.innerHTML='<td><strong>'+q.query_id+'</strong></td><td>'+depBadge(q.deployment_type)+'</td><td><strong style="color:var(--sky-dark)">'+mv+'</strong></td><td>'+fmtNum(q.spill_pressure,4)+'</td><td>'+fmtNum(q.duration_seconds)+'s</td><td>'+(q.anomaly_tags?'<span class="badge badge-spike">'+q.anomaly_tags+'</span>':'<span class="badge badge-ok">None</span>')+'</td><td style="white-space:nowrap;font-size:.73rem">'+ts+'</td>';tbody.appendChild(tr);});}).catch(function(){tbody.innerHTML='<tr><td colspan="7" class="empty-state">Failed to load.</td></tr>';});}
+document.getElementById('mode-selector').addEventListener('change',function(){clearLiveFeed();connectSSE();var at=document.querySelector('.tab-content.active');if(at&&at.id==='tab-analytics')loadAnalyticsCharts();if(at&&at.id==='tab-heavy')loadHeavyQueries();});
+document.getElementById('deploy-filter').addEventListener('change',clearLiveFeed);
+fetchStatus();setInterval(fetchStatus,6000);initLiveCharts();connectSSE();
+</script>
+</body>
+</html>
