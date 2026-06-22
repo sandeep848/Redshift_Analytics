@@ -43,7 +43,7 @@ test:
 	$(PY) -m pytest
 
 run-ui:
-	streamlit run src/ui/app.py
+	$(PY) -m src.main ui
 
 topics:
 	bash scripts/create_kafka_topics.sh
