@@ -21,8 +21,16 @@ htmlcov/
 
 # Data & logs
 *.duckdb
+*.duckdb.wal
 *.parquet
+data/
 logs/
 
 # OS
 .DS_Store
+Thumbs.db
+
+# Build / packaging
+*.egg-info/
+dist/
+build/
