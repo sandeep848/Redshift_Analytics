@@ -7,6 +7,7 @@ kafka:
   topics:
     raw_query_metrics: "query_metrics_raw"
     processed_query_metrics: "query_metrics_processed"
+    dead_letter_query_metrics: "query_metrics_dlq"
   consumer_groups:
     duckdb_writer: "duckdb-writer-group"
     ui_stream: "ui-stream-group"
@@ -77,8 +78,8 @@ redshift:
   database: "${REDSHIFT_DATABASE:dev}"
   user: "${REDSHIFT_USER:}"
   password: "${REDSHIFT_PASSWORD:}"
-  schema_name: "${REDSHIFT_SCHEMA:public}"
-  events_table: "${REDSHIFT_EVENTS_TABLE:query_metrics}"
+  schema_name: "${REDSHIFT_SCHEMA:analytics}"
+  events_table: "${REDSHIFT_EVENTS_TABLE:query_metrics_raw}"
   iam_role: "${REDSHIFT_IAM_ROLE:}"
 
 batching:
