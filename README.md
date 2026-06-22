@@ -28,47 +28,104 @@ src/              # Application source
 - AWS credentials (only if using the Redshift loader)
 
 ## Setup
+
+Create and activate your virtual environment:
+
+### Windows (PowerShell / CMD)
+```powershell
+python -m venv .venv
+.venv\Scripts\Activate.ps1   # PowerShell
+# or .venv\Scripts\activate.bat for CMD
+
+pip install -e ".[dev]"
+copy .env.example .env
+```
+
+### macOS / Linux
 ```bash
 python -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
-```
-
-Copy the sample environment file and edit values as needed:
-```bash
 cp .env.example .env
 ```
 
+---
+
 ## Development
-Start Kafka locally:
+
+First, make sure Docker Desktop or your Docker daemon is running.
+
+### 1. Start Kafka Stack
+Starts Kafka and Zookeeper in the background:
 ```bash
-make up
+docker compose up -d
+# Or: make up
 ```
 
-Create Kafka topics (once):
+### 2. Create Kafka Topics (Once)
+Create the required `query_metrics_raw` and `query_metrics_processed` topics inside the container:
+
+**Windows (PowerShell/CMD):**
+```powershell
+docker exec kafka kafka-topics --bootstrap-server localhost:9092 --create --if-not-exists --topic query_metrics_raw --partitions 3 --replication-factor 1
+docker exec kafka kafka-topics --bootstrap-server localhost:9092 --create --if-not-exists --topic query_metrics_processed --partitions 3 --replication-factor 1
+```
+
+**macOS / Linux:**
 ```bash
 make topics
 ```
 
-Bootstrap DuckDB schema:
+### 3. Bootstrap DuckDB Database
+Initializes the DuckDB database file (`data/analytics.duckdb`) and schemas:
+
+**Windows (PowerShell):**
+```powershell
+$env:PYTHONUTF8=1
+python -m scripts.bootstrap_duckdb
+```
+
+**Windows (CMD):**
+```cmd
+set PYTHONUTF8=1
+python -m scripts.bootstrap_duckdb
+```
+
+**macOS / Linux:**
 ```bash
 make bootstrap
 ```
 
-Run the replay producer:
-```bash
-make producer
-```
+### 4. Run the Pipeline Components
+Run these in separate terminals (ensure the virtual environment is activated in each):
 
-Run the DuckDB consumer:
-```bash
-make consumer-db
-```
+* **DuckDB Consumer**:
+  ```bash
+  python -m src.main consumer-duckdb
+  # Or: make consumer-db
+  ```
+* **Replay Producer**:
+  ```bash
+  python -m src.main producer
+  # Or: make producer
+  ```
+* **Analytics Dashboard UI**:
+  ```bash
+  python -m src.main ui
+  # Or: make run-ui
+  ```
 
-Start the UI:
-```bash
-make run-ui
-```
+### 5. Running Tests & Sanity Checks
+* **Running Pytest**:
+  ```bash
+  pytest
+  # Or: make test
+  ```
+* **End-to-End Sanity Check (Windows)**:
+  ```powershell
+  $env:PYTHONUTF8=1
+  python -m scripts.run_sanity_checks
+  ```
 
 ## CLI usage
 The project exposes a single CLI entrypoint:
